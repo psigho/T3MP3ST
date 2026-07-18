@@ -76,6 +76,7 @@
 - [x] **OpenAI** - GPT models
 - [x] **Mock** - Testing without API
 - [x] **Local** - Ollama support
+- [x] **Moonshot / Kimi** - Direct Kimi Open Platform (OpenAI-compatible); Kimi also routable via OpenRouter
 - [ ] **Azure OpenAI** - Enterprise deployment
 - [ ] **AWS Bedrock** - Claude via AWS
 - [ ] **Google Vertex AI** - Gemini via GCP
@@ -89,6 +90,7 @@
 - [x] Llama 3.3 70B
 - [x] Mistral Large
 - [x] GLM 4.7
+- [x] Kimi K2, Kimi K3 (Moonshot — direct or via OpenRouter)
 
 ### LLM Features
 - [x] Chat completion with retry logic

@@ -505,7 +505,9 @@ class AnthropicAdapter implements LLMProviderAdapter {
 
 class OpenAIAdapter implements LLMProviderAdapter {
   name = 'openai';
-  private config: LLMConfig;
+  // protected (not private) so thin OpenAI-compatible subclasses (e.g. MoonshotAdapter) can
+  // read it in an overridden validateConfig — mirrors OpenRouterAdapter/VeniceAdapter.
+  protected config: LLMConfig;
 
   constructor(config: LLMConfig) {
     this.config = config;
@@ -603,6 +605,27 @@ class OpenAIAdapter implements LLMProviderAdapter {
         : undefined,
       finishReason: data.choices[0]?.finish_reason,
     };
+  }
+}
+
+// =============================================================================
+// MOONSHOT ADAPTER
+// =============================================================================
+// Moonshot AI / Kimi is OpenAI-compatible on the wire (Bearer auth, POST /chat/completions,
+// identical request/response shape + native tool-calling), so it reuses the entire OpenAIAdapter
+// and only differs in its default base URL (set via the `moonshot` config block) and the
+// key-required error message. Mirrors how VeniceAdapter thinly extends OpenRouterAdapter.
+class MoonshotAdapter extends OpenAIAdapter {
+  name = 'moonshot';
+
+  validateConfig(): { valid: boolean; error?: string } {
+    if (!this.config.apiKey) {
+      return {
+        valid: false,
+        error: 'Moonshot API key is required. Get one at https://platform.moonshot.ai/console/api-keys',
+      };
+    }
+    return { valid: true };
   }
 }
 
@@ -1209,6 +1232,8 @@ export class LLMBackbone extends EventEmitter<LLMEvents> {
         return new OpenAIAdapter(config); // xAI (Grok Build / grok-*) is OpenAI-compatible
       case 'gemini':
         return new OpenAIAdapter(config); // Gemini via Google's OpenAI-compatible endpoint (baseUrl ends in /v1beta/openai)
+      case 'moonshot':
+        return new MoonshotAdapter(config); // Moonshot/Kimi via the OpenAI-compatible Kimi Open Platform
       case 'codex':
         return new CodexAdapter(config);
       case 'mock':
@@ -1479,6 +1504,12 @@ export function createVeniceBackbone(apiKey?: string, model?: string): LLMBackbo
 
 export function createOpenAIBackbone(apiKey?: string, model?: string): LLMBackbone {
   const llmConfig = config.getLLMConfig('openai', model);
+  if (apiKey) llmConfig.apiKey = apiKey;
+  return new LLMBackbone(llmConfig);
+}
+
+export function createMoonshotBackbone(apiKey?: string, model?: string): LLMBackbone {
+  const llmConfig = config.getLLMConfig('moonshot', model);
   if (apiKey) llmConfig.apiKey = apiKey;
   return new LLMBackbone(llmConfig);
 }

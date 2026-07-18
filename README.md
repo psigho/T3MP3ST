@@ -75,7 +75,23 @@ Prefer to bring a key? Set one and skip the connect step:
 ```bash
 export OPENROUTER_API_KEY=...     # or VENICE_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY
 export XAI_API_KEY=...            # Grok Build (grok-build-0.1) — xAI's coding model, native tool-calling
+export MOONSHOT_API_KEY=...       # Kimi / Moonshot — direct Kimi Open Platform, OpenAI-compatible
 ```
+
+Want the **decomposition orchestrator** to run on Kimi? Point it at the `moonshot` provider
+(direct, with `MOONSHOT_API_KEY`) or route Kimi through OpenRouter:
+
+```bash
+# direct Kimi Open Platform (needs MOONSHOT_API_KEY)
+node scripts/decompose.mjs --orchestrator-provider moonshot --orchestrator-model kimi-latest \
+  --objective "…authorized objective…" --source-dir ./repo
+# …or route Kimi through OpenRouter (needs OPENROUTER_API_KEY)
+node scripts/decompose.mjs --orchestrator-provider openrouter --orchestrator-model moonshotai/kimi-k3 \
+  --objective "…authorized objective…" --source-dir ./repo
+```
+
+On the server / War-Room path the same choice is made with the `TEMPEST_ORCHESTRATOR_PROVIDER`
+/ `TEMPEST_ORCHESTRATOR_MODEL` env vars (see `.env.example`).
 
 Slow local agents can be given more room with `T3MP3ST_LOCAL_AGENT_TIMEOUT_MS`
 for each CLI call, `T3MP3ST_TASK_TIMEOUT_MS` for mission tasks, and

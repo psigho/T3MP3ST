@@ -24,6 +24,7 @@ export interface TempestSettings {
     openai?: string;
     xai?: string;
     gemini?: string;
+    moonshot?: string;
     local?: string;
   };
 
@@ -65,6 +66,12 @@ export interface TempestSettings {
 
   // Google Gemini — native Gemini API via its OpenAI-compatible endpoint
   gemini: {
+    baseUrl: string;
+    defaultModel: string;
+  };
+
+  // Moonshot AI — Kimi models via the OpenAI-compatible Kimi Open Platform API
+  moonshot: {
     baseUrl: string;
     defaultModel: string;
   };
@@ -138,6 +145,13 @@ const DEFAULT_SETTINGS: TempestSettings = {
   gemini: {
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     defaultModel: 'gemini-2.5-flash',
+  },
+
+  // Moonshot / Kimi — OpenAI-compatible Kimi Open Platform. Global endpoint; China mirror is
+  // https://api.moonshot.cn/v1. 'kimi-latest' is a stable alias that tracks the current flagship.
+  moonshot: {
+    baseUrl: 'https://api.moonshot.ai/v1',
+    defaultModel: 'kimi-latest',
   },
 
   codex: {
@@ -309,6 +323,25 @@ export const AVAILABLE_MODELS: Record<LLMProvider, ModelInfo[]> = {
       maxOutput: 8192,
       capabilities: ['reasoning', 'code', 'analysis', 'agents'],
     },
+    // Moonshot / Kimi (routed via OpenRouter — works with the existing `openrouter` provider today;
+    // no key beyond OPENROUTER_API_KEY needed). For direct Kimi Open Platform access use the
+    // dedicated `moonshot` provider + MOONSHOT_API_KEY instead.
+    {
+      id: 'moonshotai/kimi-k2',
+      name: 'Kimi K2 (Moonshot, via OpenRouter)',
+      provider: 'Moonshot',
+      contextWindow: 256000,
+      maxOutput: 8192,
+      capabilities: ['reasoning', 'code', 'analysis', 'agents', 'tools'],
+    },
+    {
+      id: 'moonshotai/kimi-k3',
+      name: 'Kimi K3 (Moonshot, via OpenRouter)',
+      provider: 'Moonshot',
+      contextWindow: 256000,
+      maxOutput: 8192,
+      capabilities: ['reasoning', 'code', 'analysis', 'agents', 'tools'],
+    },
     // Meta
     {
       id: 'meta-llama/llama-3.3-70b',
@@ -466,6 +499,29 @@ export const AVAILABLE_MODELS: Record<LLMProvider, ModelInfo[]> = {
       capabilities: ['reasoning', 'code', 'analysis', 'vision', 'fast', 'tools'],
     },
   ],
+  // Moonshot / Kimi via the OpenAI-compatible Kimi Open Platform (api.moonshot.ai/v1). Bare model
+  // ids (no `moonshotai/` prefix — that prefix is for the OpenRouter route under `openrouter`).
+  // 'kimi-latest' auto-tracks the current flagship; any current id (kimi-k3, kimi-k2.5,
+  // moonshot-v1-128k, …) may be passed via config/CLI/model arg — these are just curated defaults.
+  // NOTE: Moonshot constrains temperature to [0,1]; T3MP3ST's defaults (0.7 / worker 0.2) are safe.
+  moonshot: [
+    {
+      id: 'kimi-latest',
+      name: 'Kimi (latest — auto-updating flagship alias)',
+      provider: 'Moonshot',
+      contextWindow: 256000,
+      maxOutput: 8192,
+      capabilities: ['reasoning', 'code', 'analysis', 'agents', 'tools'],
+    },
+    {
+      id: 'kimi-k2.5',
+      name: 'Kimi K2.5',
+      provider: 'Moonshot',
+      contextWindow: 256000,
+      maxOutput: 8192,
+      capabilities: ['reasoning', 'code', 'analysis', 'agents', 'tools'],
+    },
+  ],
   local: [
     {
       id: 'local-model',
@@ -591,7 +647,7 @@ class ConfigManager {
   /**
    * Set an API key for a provider
    */
-  setApiKey(provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'local', key: string): void {
+  setApiKey(provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'moonshot' | 'local', key: string): void {
     const apiKeys = this.config.get('apiKeys');
     apiKeys[provider] = key;
     this.config.set('apiKeys', apiKeys);
@@ -600,7 +656,7 @@ class ConfigManager {
   /**
    * Get an API key for a provider
    */
-  getApiKey(provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'local'): string | undefined {
+  getApiKey(provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'moonshot' | 'local'): string | undefined {
     // First check environment variables (highest priority)
     // local provider: a self-hosted/OpenAI-compatible server MAY require a bearer
     // (Zhipu/z.ai, Together, etc.) — accept TEMPEST_LOCAL_API_KEY or provider-specific vars.
@@ -616,6 +672,7 @@ class ConfigManager {
       openai: 'OPENAI_API_KEY',
       xai: 'XAI_API_KEY',
       gemini: 'GEMINI_API_KEY',
+      moonshot: 'MOONSHOT_API_KEY',
     };
 
     // Force a fully UNCONFIGURED server (no key from env OR the saved store) — used by
@@ -634,7 +691,7 @@ class ConfigManager {
   /**
    * Check if a provider has a valid API key configured
    */
-  hasApiKey(provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'local'): boolean {
+  hasApiKey(provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'moonshot' | 'local'): boolean {
     const key = this.getApiKey(provider);
     return !!key && key.length > 10;
   }
@@ -642,7 +699,7 @@ class ConfigManager {
   /**
    * Remove an API key
    */
-  removeApiKey(provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'local'): void {
+  removeApiKey(provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'moonshot' | 'local'): void {
     const apiKeys = this.config.get('apiKeys');
     delete apiKeys[provider];
     this.config.set('apiKeys', apiKeys);
@@ -660,6 +717,7 @@ class ConfigManager {
     if (this.hasApiKey('openai')) providers.push('openai');
     if (this.hasApiKey('xai')) providers.push('xai');
     if (this.hasApiKey('gemini')) providers.push('gemini');
+    if (this.hasApiKey('moonshot')) providers.push('moonshot');
 
     // Codex uses the local Codex CLI/account auth instead of API-key storage.
     providers.push('codex');
@@ -713,6 +771,12 @@ class ConfigManager {
         baseUrl = this.config.get('gemini').baseUrl;
         actualModel = model || this.config.get('gemini').defaultModel;
         break;
+      case 'moonshot':
+        // Moonshot / Kimi via the OpenAI-compatible Kimi Open Platform (native tool-calling).
+        apiKey = this.getApiKey('moonshot');
+        baseUrl = this.config.get('moonshot').baseUrl;
+        actualModel = model || this.config.get('moonshot').defaultModel;
+        break;
       case 'codex':
         actualModel = model || this.config.get('codex').defaultModel;
         break;
@@ -761,7 +825,7 @@ class ConfigManager {
     const flag = (process.env.TEMPEST_MODEL_FALLBACK || '').trim().toLowerCase();
     if (!flag || ['0', 'false', 'off', 'no'].includes(flag)) return [];
     const chain: FallbackEntry[] = [];
-    const add = (p: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini') => {
+    const add = (p: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'moonshot') => {
       if (p === primary || !this.hasApiKey(p)) return;
       chain.push({
         provider: p,
@@ -776,6 +840,7 @@ class ConfigManager {
     add('openai');
     add('xai');
     add('gemini');
+    add('moonshot');
     return chain;
   }
 
@@ -799,6 +864,9 @@ class ConfigManager {
       case 'openai':
         this.config.set('defaultModel', this.config.get('openai').defaultModel);
         break;
+      case 'moonshot':
+        this.config.set('defaultModel', this.config.get('moonshot').defaultModel);
+        break;
       case 'codex':
         this.config.set('defaultModel', this.config.get('codex').defaultModel);
         break;
@@ -821,6 +889,9 @@ class ConfigManager {
         break;
       case 'openai':
         this.config.set('openai', { ...this.config.get('openai'), defaultModel: model });
+        break;
+      case 'moonshot':
+        this.config.set('moonshot', { ...this.config.get('moonshot'), defaultModel: model });
         break;
       case 'codex':
         this.config.set('codex', { ...this.config.get('codex'), defaultModel: model });
@@ -861,6 +932,7 @@ class ConfigManager {
         openai: settings.apiKeys.openai ? '***REDACTED***' : undefined,
         xai: settings.apiKeys.xai ? '***REDACTED***' : undefined,
         gemini: settings.apiKeys.gemini ? '***REDACTED***' : undefined,
+        moonshot: settings.apiKeys.moonshot ? '***REDACTED***' : undefined,
       },
     };
     writeFileSync(filePath, JSON.stringify(safeSettings, null, 2));
@@ -898,6 +970,10 @@ XAI_API_KEY=
 # Get your key at: https://aistudio.google.com/apikey
 GEMINI_API_KEY=
 
+# Moonshot AI / Kimi API Key (direct Kimi Open Platform — OpenAI-compatible)
+# Get your key at: https://platform.moonshot.ai/console/api-keys
+MOONSHOT_API_KEY=
+
 # Local model (Ollama / LM Studio / vLLM / llama.cpp, or any OpenAI-compatible server)
 # Point TEMPEST_LOCAL_BASE_URL at the server root (Ollama default shown below).
 # For an OpenAI-compatible server, use a versioned path: LM Studio :1234/v1,
@@ -920,8 +996,8 @@ TEMPEST_LOCAL_API_KEY=
 export const config = new ConfigManager();
 
 // Helper functions for quick access
-export const getApiKey = (provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini') => config.getApiKey(provider);
-export const setApiKey = (provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini', key: string) => config.setApiKey(provider, key);
-export const hasApiKey = (provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini') => config.hasApiKey(provider);
+export const getApiKey = (provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'moonshot') => config.getApiKey(provider);
+export const setApiKey = (provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'moonshot', key: string) => config.setApiKey(provider, key);
+export const hasApiKey = (provider: 'openrouter' | 'venice' | 'anthropic' | 'openai' | 'xai' | 'gemini' | 'moonshot') => config.hasApiKey(provider);
 export const getLLMConfig = (provider?: LLMProvider, model?: string) => config.getLLMConfig(provider, model);
 export const getConfiguredProviders = () => config.getConfiguredProviders();

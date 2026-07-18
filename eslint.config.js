@@ -25,7 +25,11 @@ export default tseslint.config(
       'no-console': 'off', // Allow console for CLI tool
       'prefer-const': 'error',
       'no-var': 'error',
-      'eqeqeq': ['error', 'always'],
+      // Allow the intentional `== null` / `!= null` idiom (null-OR-undefined guard) while
+      // keeping strict equality everywhere else. The codebase relies on this idiom in several
+      // places (e.g. `finding.exploitedAt != null`); rewriting those to `!==` would change
+      // semantics for `undefined`, which is why eslint refuses to auto-fix them.
+      'eqeqeq': ['error', 'always', { null: 'ignore' }],
       'curly': ['warn', 'multi-line'],  // Allow single-line if without braces
     },
   },
